@@ -1,0 +1,23 @@
+Server:
+  ip: 127.0.0.1
+  port: 10000
+  join_ratio: 0.5
+  rounds: 50
+  timeout: 200
+  number_of_clients: 3
+
+Client:
+  batch_size: 32
+  learning_rate: 0.001
+  local_epochs: 5
+  timeout: 200
+  
+Dataset:
+  name: FashionMNIST
+  num_classes: 10
+
+Model:
+  type: MLP
+  in_features: 3072
+  hidden_dim: 10
+  
