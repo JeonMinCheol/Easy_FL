@@ -1,26 +1,40 @@
-# --- 공용 send/recv 함수 ---
+import io
 import pickle
 import struct
 
+import torch
+
+
 def send_object(sock, obj):
-    payload = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
-    length = struct.pack('Q', len(payload))  # 8바이트 길이
+    buffer = io.BytesIO()
+    torch.save(obj, buffer)
+    payload = buffer.getvalue()
+    length = struct.pack('Q', len(payload))
     sock.sendall(length)
     sock.sendall(payload)
 
+
+def _recv_exact(sock, num_bytes: int):
+    chunks = []
+    received = 0
+    while received < num_bytes:
+        chunk = sock.recv(num_bytes - received)
+        if not chunk:
+            return None
+        chunks.append(chunk)
+        received += len(chunk)
+    return b''.join(chunks)
+
+
 def recv_object(sock):
-    # 길이 먼저 받기
-    raw_len = sock.recv(8)
+    raw_len = _recv_exact(sock, 8)
     if not raw_len:
         return None
+
     total_len = struct.unpack('Q', raw_len)[0]
+    payload = _recv_exact(sock, total_len)
+    if payload is None:
+        return None
 
-    # 정확히 total_len 만큼 받기
-    received = b''
-    while len(received) < total_len:
-        packet = sock.recv(4096)
-        if not packet:
-            break
-        received += packet
-
-    return pickle.loads(received)
+    buffer = io.BytesIO(payload)
+    return torch.load(buffer, map_location='cpu', weights_only=False)

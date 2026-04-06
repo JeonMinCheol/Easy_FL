@@ -1,23 +1,29 @@
 Server:
-  ip: 127.0.0.1
+  ip: 0.0.0.0
   port: 10000
-  join_ratio: 0.5
-  rounds: 50
-  timeout: 200
+  join_ratio: 1.0
+  rounds: 10
+  timeout: 300
   number_of_clients: 3
-
+  seed: 42
 Client:
-  batch_size: 32
-  learning_rate: 0.001
-  local_epochs: 5
-  timeout: 200
-  
+  batch_size: 256
+  learning_rate: 0.0001
+  local_epochs: 3
+  timeout: 300
 Dataset:
-  name: FashionMNIST
-  num_classes: 10
-
+  name: KDD99
+  data_root: dataset
+  train_on_normal_only: true
+  threshold_method: std
+  threshold_std_factor: 3.0
+  threshold_quantile: 0.99
 Model:
-  type: MLP
-  in_features: 3072
-  hidden_dim: 10
-  
+  type: AutoEncoder
+  latent_dim: 4
+  dropout: 0.1
+  hidden_dims:
+  - 96
+  - 64
+  - 48
+  - 16

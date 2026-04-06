@@ -1,101 +1,83 @@
-# Easy_FL 설치 및 실행 가이드
+# 실행 방법
+1. yml 파일 설정
+2. prepare_kdd99_from_pickle.py 실행 (서버, 클라이언트 둘 다)
+3. 서버는 server.py 실행
+4. 클라이언트는 client.py 실행
 
-이 문서는 수업 시간에 사용할 `Easy_FL` 프로젝트의 환경 설정 및 실행 방법을 안내합니다.
 
-## 1. 가상환경 생성 (권장)
+## 1) 설정 파일 확인
 
-파이썬 패키지 충돌을 방지하기 위해 가상환경을 생성하여 진행하는 것을 권장합니다.
+기본 `config.yml`은 다음 방향으로 맞춰져 있습니다.
 
-**conda를 사용하는 경우:**
+- `Server.number_of_clients`: 전처리 때 만든 client 수와 동일해야 함
+- `Dataset.name: KDD99`
+- `Dataset.threshold_method: std`
+- `Dataset.threshold_std_factor: 3.0`
 
-conda create -n easyfl python=3.8
+원하면 다음도 바꿀 수 있습니다.
 
-conda activate easyfl
+```yaml
+Client:
+  batch_size: 256
+  learning_rate: 0.0001
+  local_epochs: 3
 
-**기본 venv를 사용하는 경우:**
-### Windows
+Dataset:
+  threshold_method: quantile
+  threshold_quantile: 0.99
 
-python -m venv venv
+Model:
+  latent_dim: 4
+  dropout: 0.1
+  hidden_dims: [96, 64, 48, 16]
+```
 
-.\venv\Scripts\activate
 
-### Mac/Linux
+## 1) KDD99 데이터 전처리 및 client shard 생성
 
-python3 -m venv venv
+### `preprocessed_data_full.pkl`이 있어야 합니다.
+예:
+```bash
+python prepare_kdd99_from_pickle.py --pickle_path /path/to/preprocessed_data_full.pkl --num_clients 3 --output_dir dataset/KDD99 --train_anomaly_fraction 0.0
+```
 
-source venv/bin/activate
+num_clients 인자에 yml 파일과 동일한 클라이언트 수를 입력해주세요.
 
-## 2. 라이브러리 설치
-### 이 프로젝트는 PyTorch와 설정 파일 로드를 위한 PyYAML가 필요합니다.
+### 중요!
+서버 또한 클라이언트와 같은 수의 데이터 샤드를 미리 생성해야합니다.
+(가중치 전송에 사용됨.)
 
-PyTorch 설치
+## 3) 실행 방법
 
-https://pytorch.org/get-started/locally/ 이동해서 자신에게 맞는 버전 설치.
+서버 컴퓨터에서 실행:
 
-pyyaml 설치
-
-pip install pyyaml
-
-## 3. 설정 파일 (config.yml) 작성
-
-프로젝트 최상위 폴더(루트 디렉토리)에 config.yml 파일을 생성하고 아래 내용을 붙여넣으세요. (예시입니다.)
-
-    Server:
-  
-      ip: 127.0.0.1        # 서버 IP 주소 (로컬 테스트 시 127.0.0.1)
-    
-      port: 10000          # 통신 포트
-    
-      join_ratio: 0.5      # 라운드 참여 비율
-    
-      rounds: 50           # 전체 라운드 수
-    
-      timeout: 200         # 타임아웃 시간 (초)
-    
-      number_of_clients: 3 # 전체 클라이언트 수
-  
-    Client:
-  
-      batch_size: 32       # 배치 크기
-    
-      learning_rate: 0.001 # 학습률
-    
-      local_epochs: 5      # 로컬 학습 에폭 수
-    
-      timeout: 200         # 타임아웃 시간
-  
-    Dataset:
-
-      name: FMNIST         # 데이터셋 이름
-  
-      num_classes: 10      # 클래스 개수
-
-    Model:
-
-      type: MLP
-  
-      in_features: 3072
-  
-      hidden_dim: 10
-
-## 4. 실행 방법
-서버와 클라이언트는 각각 다른 터미널 창을 열어서 실행해야 합니다.
-
-**1단계: 서버 실행**
-
-첫 번째 터미널에서 서버를 실행합니다.
-
+```bash
 python servers/server.py
+```
 
+다른 터미널 혹은 컴퓨터들에서 client 실행 (`number_of_clients` 만큼):
 
-**2단계: 클라이언트 실행**
+```bash
+python clients/client.py
+```
 
-새로운 터미널 창을 열고 클라이언트를 실행합니다. 
+## 4. 모델 저장 및 로컬 추론
 
-설정 파일의 number_of_clients만큼의 클라이언트가 접속해야 학습이 시작됩니다.
+학습이 진행되면 다음 파일들이 자동으로 저장됩니다.
 
-python clients/client.py (number_of_clients만큼 실행)
+- 서버 글로벌 모델: `artifacts/server/global_model_latest.pt`
+- 클라이언트 로컬 체크포인트: `artifacts/clients/client_<id>_latest.pt`
 
+클라이언트 PC에서 저장된 체크포인트로 테스트 shard를 바로 평가하려면:
 
-모든 클라이언트가 연결되면 서버에서 자동으로 연합 학습(Federated Learning) 라운드가 시작됩니다.
+```bash
+python clients/infer_saved_model.py   --checkpoint_path artifacts/clients/client_0_latest.pt   --client_id 0   --split test
+```
 
+특정 npz 파일을 직접 평가하려면:
+
+```bash
+python clients/infer_saved_model.py   --checkpoint_path artifacts/clients/client_0_latest.pt   --npz_path dataset/KDD99/test/0.npz
+```
+
+출력은 기본적으로 `threshold`, `loss`, `acc`, `predicted_anomalies`를 보여줍니다.
